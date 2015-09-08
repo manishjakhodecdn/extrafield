@@ -1,0 +1,56 @@
+{% ckan_extends %}
+
+{% block extras %}
+  {% if pkg_dict.system_data %}
+    <tr>
+      <th scope="row" class="dataset-label">{{ _("System Data") }}</th>
+      <td class="dataset-details">{{ pkg_dict.system_data }}</td>
+    </tr>
+  {% endif %}
+
+ {% if pkg_dict.structured_data %}
+    <tr>
+      <th scope="row" class="dataset-label">{{ _("Structured Data") }}</th>
+      <td class="dataset-details">{{ pkg_dict.structured_data }}</td>
+    </tr>
+ {% endif %}
+
+{% if pkg_dict.data_sources %}
+    <tr>
+      <th scope="row" class="dataset-label">{{ _("Data Source") }}</th>
+      <td class="dataset-details">{{ pkg_dict.data_sources }}</td>
+    </tr>
+  {% endif %}
+
+{% if pkg_dict.system_experts %}
+    <tr>
+      <th scope="row" class="dataset-label">{{ _("Data Source Expert") }}</th>
+      <!--<td class="dataset-details">{{ pkg_dict.system_experts }}</td>-->
+<td class="dataset-details" property="dc:creator">{{ h.mail_to(email_address=pkg_dict.system_experts, name= '') }}</td>
+
+    </tr>
+  {% endif %}
+
+{% if pkg_dict.requirement_security %}
+    <tr>
+      <th scope="row" class="dataset-label">{{ _("Security Requirement") }}</th>
+      <td class="dataset-details">{{ pkg_dict.requirement_security }}</td>
+    </tr>
+  {% endif %}
+
+
+{% if pkg_dict.system_owner %}
+    <tr>
+      <th scope="row" class="dataset-label">{{ _("IT System Owner") }}</th>
+      <td class="dataset-details">{{ pkg_dict.system_owner }}</td>
+    </tr>
+  {% endif %}
+
+{% if pkg_dict.business_owner %}
+    <tr>
+      <th scope="row" class="dataset-label">{{ _("Business Owner") }}</th>
+      <td class="dataset-details">{{ pkg_dict.business_owner }}</td>
+    </tr>
+  {% endif %}
+
+{% endblock %}
