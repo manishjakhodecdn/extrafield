@@ -2,47 +2,114 @@ import ckan.plugins as plugins
 import ckan.plugins.toolkit as toolkit
 import ckan.logic as logic
 import ckan.model as model
+import ckan.lib.navl.dictization_functions as dict_fns
+from ckan.lib.navl.dictization_functions import unflatten, Invalid
 import ckan.lib.mailer as mailer
+import ckan.lib.helpers as h
+import time
 
 from ckan.plugins import IGroupController
 #DEFAULT_DOMAIN_CATEGORY_NAME = 'domain'
-
 get_action = logic.get_action
-            
-def getGrouplist(self,value):
-    print value
-    return
+NotFound = logic.NotFound
+clean_dict = logic.clean_dict
+tuplize_dict = logic.tuplize_dict
+parse_params = logic.parse_params
+ds_groups = []
 
-    context = {'model': model,
+def check_group_availability(valueItem,sufix):
+    context2 = {'model': model,
                    'session': model.Session,
                    'ignore_auth': True
-                }                                                       
-    data_dict = { 'sort': 'name' }               
-    grouplist = logic.get_action('group_list')(context, data_dict)
-    #{'image_upload': u'', 'title': u'Facetslist', 'description': u'', 'name': u'facetslist', 'image_url': u'', 'users': [{'capacity': 'admin', 'name': u'admin'}], 'save': u'', 'type': 'group', 'clear_upload': u''}
+                }
+    complexdata = { 'id': valueItem+sufix }
+    groupshow  = logic.get_action('group_show')(context2, complexdata) 
+    return groupshow
+
+def create_missing_group(valueItem ,sufix): 
+    context1 = {'model': model,
+                   'session': model.Session,
+                   'ignore_auth': True
+                }
+
+    #, 'packages':[{'name':}]            
+    groupCreaated = { 'name' : valueItem+sufix , 'title' : valueItem, 'users': [{ 'capacity': 'admin', 'name' : 'admin' }], 'type': 'group' }
+    group_created_string = logic.get_action('group_create')(context1, groupCreaated)
+    return group_created_string 
+
+
+def _check_tags(key, data, errors, context):
+
+    unflattened = unflatten(data)
+    option = {'domain':'-dm', 'phase':'-ph'}
+    keyvalue = key[0]
+    pkg_name = unflattened.get('name')
+    print pkg_name
+    
+    #return 
+
+    #print option[keyvalue]
+    value = data.get(key)
+    array = value.split(',')
+
+
+    for valueItem in array:     
+        complexdata = { 'id': valueItem }
+
+        # Check if group exist
+        try: 
+            groupshow = check_group_availability(valueItem, option[keyvalue])
+        except NotFound:
+            # If group is not exist then create
+            getSting = create_missing_group(valueItem, option[keyvalue])
+            print getSting
+
+        ds_groups.append({ 'name' : valueItem+option[keyvalue] })
+        print ds_groups
 
     
-    for grouplistitem in grouplist:
-        complexdata = { 'id': grouplistitem }
-        grouplistDetails = logic.get_action('group_show')(context, complexdata)
-        groupCreaated = { 'name' : 'timepass_dm', 'title' : 'timepass_dm', 'users': [{ 'capacity': 'admin', 'name' : 'admin' }], 'type': 'group' }
-        group_created = logic.get_action('group_create')(context, groupCreaated)
-        print group_created
-        return 
+    return
+ 
+def update_package_group_association(pkg_name, ds_groups):
+    context_pkg = {'model': model,
+                   'session': model.Session,
+                   'ignore_auth': True
+                }
+    
+    chk_pckg = { 'id' : pkg_name }
+    pkg_avail = logic.get_action('package_show')(context_pkg, chk_pckg)
+    print pkg_avail
+
+    packageUpdate = { 'id' : pkg_name , 'groups' : ds_groups}
+    #packageUpdate_str = logic.get_action('package_update')(context_pkg, packageUpdate)
+    return  #packageUpdate_str 
+
 
 class ExtrafieldsPlugin(plugins.SingletonPlugin,toolkit.DefaultDatasetForm):
     
     plugins.implements(plugins.IDatasetForm)
     plugins.implements(plugins.IConfigurer)
-	
+    plugins.implements(plugins.IPackageController, inherit=True)
+    
     
     def before_view(self, pkg_dict):
         return pkg_dict
 
+    def _get_datasource(self,dataset_name):
+        import ckan.model as model
+        from ckan.logic import get_action
+        return dataset_name
+
     def create_package_schema(self):
         schema = super(ExtrafieldsPlugin, self).create_package_schema()
         schema = self._modify_package_schema(schema)
-        return schema	
+        print "create_package_schema"
+        #dataset_name_value =   {
+            #'dataset_name': self._get_datasource
+        #}
+        #dataset_name_value['dataset_name']
+        #update_package_group_association(self.name, ds_groups)
+        return schema   
 
     def _modify_package_schema(self, schema):
         schema.update({
@@ -74,13 +141,13 @@ class ExtrafieldsPlugin(plugins.SingletonPlugin,toolkit.DefaultDatasetForm):
                 'business_owner' : [ toolkit.get_validator('ignore_missing'), toolkit.get_converter('convert_to_extras')]
                 })
         schema.update({
-                'domain' : [ toolkit.get_validator('ignore_missing'), toolkit.get_converter('convert_to_extras'),getGrouplist(self, value)]
+                'domain' : [ toolkit.get_validator('ignore_missing'), toolkit.get_converter('convert_to_extras'),_check_tags]
                 })
         schema.update({
                 'key_entities' : [ toolkit.get_validator('ignore_missing'), toolkit.get_converter('convert_to_extras')]
                 })
         schema.update({
-                'phase' : [ toolkit.get_validator('ignore_missing'), toolkit.get_converter('convert_to_extras')]
+                'phase' : [ toolkit.get_validator('ignore_missing'), toolkit.get_converter('convert_to_extras'),_check_tags]
                 })
         schema.update({
                 'chameleon_id' : [ toolkit.get_validator('ignore_missing'), toolkit.get_converter('convert_to_extras')]
@@ -110,7 +177,7 @@ class ExtrafieldsPlugin(plugins.SingletonPlugin,toolkit.DefaultDatasetForm):
         schema['resources'].update({
                 'path_url' : [ toolkit.get_validator('ignore_missing') ]
                 })
-        
+        print "_modify_package_schema"
         return schema
     # IConfigurer
 
@@ -118,6 +185,7 @@ class ExtrafieldsPlugin(plugins.SingletonPlugin,toolkit.DefaultDatasetForm):
         schema = super(ExtrafieldsPlugin, self).update_package_schema()
         #our custom field
         schema = self._modify_package_schema(schema)
+        print "update_package_schema"
         return schema
 
     def show_package_schema(self):
