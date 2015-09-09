@@ -31,12 +31,9 @@ def create_missing_group(valueItem ,sufix):
                    'session': model.Session,
                    'ignore_auth': True
                 }
-
-    #, 'packages':[{'name':}]            
     groupCreaated = { 'name' : valueItem+sufix , 'title' : valueItem, 'users': [{ 'capacity': 'admin', 'name' : 'admin' }], 'type': 'group' }
     group_created_string = logic.get_action('group_create')(context1, groupCreaated)
     return group_created_string 
-
 
 def _check_tags(key, data, errors, context):
 
@@ -45,18 +42,10 @@ def _check_tags(key, data, errors, context):
     keyvalue = key[0]
     pkg_name = unflattened.get('name')
     print pkg_name
-    
-    #return 
-
-    #print option[keyvalue]
     value = data.get(key)
     array = value.split(',')
-
-
     for valueItem in array:     
         complexdata = { 'id': valueItem }
-
-        # Check if group exist
         try: 
             groupshow = check_group_availability(valueItem, option[keyvalue])
         except NotFound:
@@ -66,8 +55,6 @@ def _check_tags(key, data, errors, context):
 
         ds_groups.append({ 'name' : valueItem+option[keyvalue] })
         print ds_groups
-
-    
     return
  
 def update_package_group_association(pkg_name, ds_groups):
@@ -103,12 +90,7 @@ class ExtrafieldsPlugin(plugins.SingletonPlugin,toolkit.DefaultDatasetForm):
     def create_package_schema(self):
         schema = super(ExtrafieldsPlugin, self).create_package_schema()
         schema = self._modify_package_schema(schema)
-        print "create_package_schema"
-        #dataset_name_value =   {
-            #'dataset_name': self._get_datasource
-        #}
-        #dataset_name_value['dataset_name']
-        #update_package_group_association(self.name, ds_groups)
+        update_package_group_association(self.name, ds_groups)
         return schema   
 
     def _modify_package_schema(self, schema):
@@ -177,7 +159,6 @@ class ExtrafieldsPlugin(plugins.SingletonPlugin,toolkit.DefaultDatasetForm):
         schema['resources'].update({
                 'path_url' : [ toolkit.get_validator('ignore_missing') ]
                 })
-        print "_modify_package_schema"
         return schema
     # IConfigurer
 
