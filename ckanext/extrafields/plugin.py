@@ -4,9 +4,12 @@ import ckan.logic as logic
 import ckan.model as model
 import ckan.lib.navl.dictization_functions as dict_fns
 from ckan.lib.navl.dictization_functions import unflatten, Invalid
+from ckan.model.domain_object import DomainObjectOperation
 import ckan.lib.mailer as mailer
 import ckan.lib.helpers as h
 import time
+
+
 
 from ckan.plugins import IGroupController
 #DEFAULT_DOMAIN_CATEGORY_NAME = 'domain'
@@ -41,7 +44,6 @@ def _check_tags(key, data, errors, context):
     option = {'domain':'-dm', 'phase':'-ph'}
     keyvalue = key[0]
     pkg_name = unflattened.get('name')
-    print pkg_name
     value = data.get(key)
     array = value.split(',')
     for valueItem in array:     
@@ -51,25 +53,23 @@ def _check_tags(key, data, errors, context):
         except NotFound:
             # If group is not exist then create
             getSting = create_missing_group(valueItem, option[keyvalue])
-            print getSting
-
+            
         ds_groups.append({ 'name' : valueItem+option[keyvalue] })
-        print ds_groups
     return
- 
 def update_package_group_association(pkg_name, ds_groups):
     context_pkg = {'model': model,
                    'session': model.Session,
                    'ignore_auth': True
                 }
-    
     chk_pckg = { 'id' : pkg_name }
     pkg_avail = logic.get_action('package_show')(context_pkg, chk_pckg)
-    print pkg_avail
-
-    packageUpdate = { 'id' : pkg_name , 'groups' : ds_groups}
-    #packageUpdate_str = logic.get_action('package_update')(context_pkg, packageUpdate)
-    return  #packageUpdate_str 
+    context_group1 = {'model': model,
+                   'session': model.Session,
+                   'ignore_auth': True
+                }
+    #schemaUpdateGroup = { 'id' : pkg_avail['name'], 'groups' : ds_groups }
+    #getlisting = logic.get_action('package_update')(context_group1, schemaUpdateGroup)
+    return  #getlisting
 
 
 class ExtrafieldsPlugin(plugins.SingletonPlugin,toolkit.DefaultDatasetForm):
@@ -77,20 +77,16 @@ class ExtrafieldsPlugin(plugins.SingletonPlugin,toolkit.DefaultDatasetForm):
     plugins.implements(plugins.IDatasetForm)
     plugins.implements(plugins.IConfigurer)
     plugins.implements(plugins.IPackageController, inherit=True)
+    plugins.implements(plugins.IDomainObjectModification, inherit=True)
     
     
     def before_view(self, pkg_dict):
         return pkg_dict
 
-    def _get_datasource(self,dataset_name):
-        import ckan.model as model
-        from ckan.logic import get_action
-        return dataset_name
-
     def create_package_schema(self):
         schema = super(ExtrafieldsPlugin, self).create_package_schema()
         schema = self._modify_package_schema(schema)
-        update_package_group_association(self.name, ds_groups)
+        #update_package_group_association(self.name, ds_groups)
         return schema   
 
     def _modify_package_schema(self, schema):
@@ -166,7 +162,6 @@ class ExtrafieldsPlugin(plugins.SingletonPlugin,toolkit.DefaultDatasetForm):
         schema = super(ExtrafieldsPlugin, self).update_package_schema()
         #our custom field
         schema = self._modify_package_schema(schema)
-        print "update_package_schema"
         return schema
 
     def show_package_schema(self):
@@ -261,3 +256,14 @@ class ExtrafieldsPlugin(plugins.SingletonPlugin,toolkit.DefaultDatasetForm):
         toolkit.add_template_directory(config_, 'templates')
         toolkit.add_public_directory(config_, 'public')
         toolkit.add_resource('fanstatic', 'extrafields')
+
+    def notify(self, entity, operation=None):
+        context4 = {'model': model, 'ignore_auth': True, 'defer_commit': True}
+        if isinstance(entity, model.Package):
+            if operation == DomainObjectOperation.new:
+                update_package_group_association(entity.name,ds_groups)
+            elif operation == DomainObjectOperation.changed: 
+                update_package_group_association(entity.name,ds_groups)
+            else:
+                return
+                                
