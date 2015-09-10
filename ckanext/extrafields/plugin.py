@@ -8,6 +8,7 @@ from ckan.model.domain_object import DomainObjectOperation
 import ckan.lib.mailer as mailer
 import ckan.lib.helpers as h
 import time
+import sys
 
 
 
@@ -19,6 +20,8 @@ clean_dict = logic.clean_dict
 tuplize_dict = logic.tuplize_dict
 parse_params = logic.parse_params
 ds_groups = []
+my_dic = {}
+chk_flag = True
 
 def check_group_availability(valueItem,sufix):
     context2 = {'model': model,
@@ -55,26 +58,14 @@ def _check_tags(key, data, errors, context):
             getSting = create_missing_group(valueItem, option[keyvalue])
             
         ds_groups.append({ 'name' : valueItem+option[keyvalue] })
-    return
-def update_package_group_association(pkg_name, ds_groups):
-    context_pkg = {'model': model,
-                   'session': model.Session,
-                   'ignore_auth': True
-                }
-    chk_pckg = { 'id' : pkg_name }
-    pkg_avail = logic.get_action('package_show')(context_pkg, chk_pckg)
-    getlist_group = _update_association_group_list(pkg_avail['name'], ds_groups)
-    return  
+    
 
-def _update_association_group_list(pkg_name,ds_groups):
-    context_group1 = {'model': model,
-                   'session': model.Session,
-                   'ignore_auth': True
-                }
-    schemaUpdateGroup = { 'id' : pkg_name,'groups' : ds_groups }
-    getlisting = logic.get_action('package_update')(context_group1, schemaUpdateGroup)
-    return  
- 
+
+def update_association_group(pkg_dict):
+    context_pkg = {'model': model, 'session': model.Session, 'ignore_auth': True, 'allow_partial_update' : True }
+    packageUpdate  =  { 'id' : pkg_dict['id'] , 'groups': ds_groups }
+    packageUpdate_str = logic.get_action('package_update')(context_pkg, packageUpdate)
+    return
 
 class ExtrafieldsPlugin(plugins.SingletonPlugin,toolkit.DefaultDatasetForm):
     
@@ -85,12 +76,20 @@ class ExtrafieldsPlugin(plugins.SingletonPlugin,toolkit.DefaultDatasetForm):
     
     
     def before_view(self, pkg_dict):
+        #Just to test the method
         return pkg_dict
 
+    def after_create(self, context, pkg_dict):
+        print 'after_create'
+        context_pkg = {'model': model, 'session': model.Session, 'ignore_auth': True, 'allow_partial_update' : True }
+        packageUpdate  =  { 'id' : pkg_dict['id'], 'title' : 'string', 'groups' : ds_groups }
+        packageUpdate_str = logic.get_action('package_update')(context_pkg, my_dic)
+        return
+        
+        
     def create_package_schema(self):
         schema = super(ExtrafieldsPlugin, self).create_package_schema()
         schema = self._modify_package_schema(schema)
-        #update_package_group_association(self.name, ds_groups)
         return schema   
 
     def _modify_package_schema(self, schema):
@@ -261,13 +260,7 @@ class ExtrafieldsPlugin(plugins.SingletonPlugin,toolkit.DefaultDatasetForm):
         toolkit.add_public_directory(config_, 'public')
         toolkit.add_resource('fanstatic', 'extrafields')
 
-    def notify(self, entity, operation=None):
-        context4 = {'model': model, 'ignore_auth': True, 'defer_commit': True}
-        if isinstance(entity, model.Package):
-            if operation == DomainObjectOperation.new:
-                update_package_group_association(entity.name,ds_groups)
-            elif operation == DomainObjectOperation.changed: 
-                update_package_group_association(entity.name,ds_groups)
-            else:
-                return
+    
+               
+              
                                 
