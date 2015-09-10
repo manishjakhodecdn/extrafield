@@ -63,14 +63,18 @@ def update_package_group_association(pkg_name, ds_groups):
                 }
     chk_pckg = { 'id' : pkg_name }
     pkg_avail = logic.get_action('package_show')(context_pkg, chk_pckg)
+    getlist_group = _update_association_group_list(pkg_avail['name'], ds_groups)
+    return  
+
+def _update_association_group_list(pkg_name,ds_groups):
     context_group1 = {'model': model,
                    'session': model.Session,
                    'ignore_auth': True
                 }
-    #schemaUpdateGroup = { 'id' : pkg_avail['name'], 'groups' : ds_groups }
-    #getlisting = logic.get_action('package_update')(context_group1, schemaUpdateGroup)
-    return  #getlisting
-
+    schemaUpdateGroup = { 'id' : pkg_name,'groups' : ds_groups }
+    getlisting = logic.get_action('package_update')(context_group1, schemaUpdateGroup)
+    return  
+ 
 
 class ExtrafieldsPlugin(plugins.SingletonPlugin,toolkit.DefaultDatasetForm):
     
