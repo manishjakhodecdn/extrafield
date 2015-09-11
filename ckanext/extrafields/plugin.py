@@ -11,7 +11,6 @@ import time
 import sys
 
 
-
 from ckan.plugins import IGroupController
 #DEFAULT_DOMAIN_CATEGORY_NAME = 'domain'
 get_action = logic.get_action
@@ -20,8 +19,7 @@ clean_dict = logic.clean_dict
 tuplize_dict = logic.tuplize_dict
 parse_params = logic.parse_params
 ds_groups = []
-my_dic = {}
-chk_flag = True
+set_flag = True
 
 def check_group_availability(valueItem,sufix):
     context2 = {'model': model,
@@ -48,23 +46,36 @@ def _check_tags(key, data, errors, context):
     keyvalue = key[0]
     pkg_name = unflattened.get('name')
     value = data.get(key)
-    array = value.split(',')
-    for valueItem in array:     
-        complexdata = { 'id': valueItem }
-        try: 
-            groupshow = check_group_availability(valueItem, option[keyvalue])
-        except NotFound:
-            # If group is not exist then create
-            getSting = create_missing_group(valueItem, option[keyvalue])
+    print 'Value ->'+value
+    if value != '' and value is not None: 
+        array = value.split(',')
+        for valueItem in array:     
+            complexdata = { 'id': valueItem }
+            try:        
+                groupshow = check_group_availability(valueItem, option[keyvalue])
+            except NotFound:
+                # If group is not exist then create
+                getSting = create_missing_group(valueItem, option[keyvalue])
             
-        ds_groups.append({ 'name' : valueItem+option[keyvalue] })
-    
+            ds_groups.append({ 'name' : valueItem+option[keyvalue] })
+    global set_flag
+    set_flag = True
+    print ds_groups
+    print set_flag
+            
 
 
 def update_association_group(pkg_dict):
-    context_pkg = {'model': model, 'session': model.Session, 'ignore_auth': True, 'allow_partial_update' : True }
-    packageUpdate  =  { 'id' : pkg_dict['id'] , 'groups': ds_groups }
-    packageUpdate_str = logic.get_action('package_update')(context_pkg, packageUpdate)
+    global set_flag 
+    global ds_groups
+    print ds_groups
+    print set_flag
+    if set_flag is not False:
+        set_flag = False        
+        context_pkg = {'model': model, 'session': model.Session, 'ignore_auth': True, 'allow_partial_update' : True }
+        packageUpdate  =  { 'id' : pkg_dict['id'], 'notes' : 'abc' , 'groups' : ds_groups}
+        packageUpdate_str = logic.get_action('package_update')(context_pkg, packageUpdate)
+        ds_groups = []
     return
 
 class ExtrafieldsPlugin(plugins.SingletonPlugin,toolkit.DefaultDatasetForm):
@@ -74,23 +85,26 @@ class ExtrafieldsPlugin(plugins.SingletonPlugin,toolkit.DefaultDatasetForm):
     plugins.implements(plugins.IPackageController, inherit=True)
     plugins.implements(plugins.IDomainObjectModification, inherit=True)
     
-    
     def before_view(self, pkg_dict):
         #Just to test the method
+        set_flag = True
         return pkg_dict
 
     def after_create(self, context, pkg_dict):
         print 'after_create'
-        context_pkg = {'model': model, 'session': model.Session, 'ignore_auth': True, 'allow_partial_update' : True }
-        packageUpdate  =  { 'id' : pkg_dict['id'], 'title' : 'string', 'groups' : ds_groups }
-        packageUpdate_str = logic.get_action('package_update')(context_pkg, my_dic)
+        update_association_group(pkg_dict)
         return
-        
-        
+
+    def after_update(self, context, pkg_dict):
+        print "after_update"
+        update_association_group(pkg_dict)
+        return 
+   
     def create_package_schema(self):
         schema = super(ExtrafieldsPlugin, self).create_package_schema()
         schema = self._modify_package_schema(schema)
         return schema   
+
 
     def _modify_package_schema(self, schema):
         schema.update({
