@@ -1,3 +1,4 @@
+import urllib2
 import ckan.plugins as plugins
 import ckan.plugins.toolkit as toolkit
 import ckan.logic as logic
@@ -29,9 +30,6 @@ def check_group_availability(valueItem,sufix):
     valueItem = valueItem.replace(' ', '-')
     valueItem = valueItem.lower()
     complexdata = { 'id': valueItem+sufix }
-    print "complex data"
-    print complexdata
-
     if sufix == '-dm':
         groupshow  = logic.get_action('group_show')(context2, complexdata)
     elif sufix == '-ph': 
@@ -43,47 +41,36 @@ def manage_vocab(key, data, errors, context):
     # check vocab available
     # if not then create
     # return vocab id
+    print "manage vocab start"
     vocab_context = {'model': model,
                    'session': model.Session,
                    'ignore_auth': True }
     vocab_list = []
     value = data.get(key)
-    print "value ->" + value
-
+   
     if value != '' and value is not None: 
         array = value.split(',')
         for tag_name in array:     
-            print "manage vocab -> " + value
             try:
                 # get vocab details
                 vocab_list = logic.get_action('vocabulary_list')(vocab_context)
                 vocab_list = vocab_list[0]
-                print "under try"
-                print vocab_list
+                
             except Exception, e:
                 # create Vocab
-                print "creating vocab"
                 domaindata = {'name': 'gsk_vocab'}
                 vocab_list = logic.get_action('vocabulary_create')(vocab_context, domaindata)
        
-            # Add tag to vocab
-            print vocab_list['id']
             # check tag already exist in vocab list
-            print "must run"
             tag_name = tag_name.replace(' ', '-')
             tag_name = tag_name.lower()
             tagDict1 = {'vocabulary_id':vocab_list['id'], 'query': tag_name }
-            print tagDict1 
             taginfo_upper = logic.get_action('tag_search')(vocab_context, tagDict1)
-            print taginfo_upper
-            print taginfo_upper['count']
             
             if taginfo_upper['count'] == 0: 
                 print "create tag"
-                tagdata = {'name': tag_name, 'vocabulary_id': vocab_list['id']}
+                tagdata = {'name': tag_name, 'vocabulary_id': vocab_list['id'] } #, 'vocabulary_id': vocab_list['id']
                 tagdata_str = logic.get_action('tag_create')(vocab_context, tagdata)
-                print tagdata_str   
-            print vocab_list
     return 
 
 def create_missing_group(valueItem ,sufix): 
@@ -93,25 +80,19 @@ def create_missing_group(valueItem ,sufix):
                 }
     _name = valueItem.replace(' ', '-')
     _name = _name.lower()
-    print "this is new value item"
-    print _name
-
+    
     if sufix == '-dm':             
         groupCreaated = { 'name' :  _name+sufix , 'title' : valueItem, 'users': [{ 'capacity': 'admin', 'name' : 'admin' }], 'type': 'group', 'extras':[{ 'key' : 'gsk_type', 'value' :sufix }] }
-        print "domain name data"
-        print groupCreaated
         group_created_string = logic.get_action('group_create')(context1, groupCreaated)
 
     elif sufix == '-ph':
         groupCreaated1 = { 'name' : _name+sufix , 'title' : valueItem, 'users': [{ 'capacity': 'admin', 'name' : 'admin' }], 'type': 'organization', 'extras':[{ 'key' : 'gsk_type', 'value' :sufix }] }
-        print "phase name data"
-        print groupCreaated1
         group_created_string = logic.get_action('organization_create')(context1, groupCreaated1)
         
     return group_created_string
 
 def _check_tags(key, data, errors, context):
-
+    
     unflattened = unflatten(data)
     option = {'domain':'-dm', 'phase':'-ph'}
     keyvalue = key[0]
@@ -129,8 +110,9 @@ def _check_tags(key, data, errors, context):
             
             _name = valueItem.replace(' ', '-')
             _name = _name.lower()
-            ds_groups.append({ 'name' : _name+option[keyvalue] })
-            #manage_vocab(valueItem)
+    
+            if option[keyvalue] == '-dm':
+                ds_groups.append({ 'name' : _name+option[keyvalue] })
 
     global set_flag
     set_flag = True
@@ -139,16 +121,16 @@ def create_association_group(pkg_dict):
     global set_flag 
     global ds_groups
 
-    print pkg_dict
-    print "i am in crete"
     phase_value = pkg_dict['phase']
     if phase_value != '' and phase_value is not None:
         phase_value = pkg_dict['phase']+'-ph'
-    print phase_value
-
+        phase_value = phase_value.replace(' ', '-')
+        phase_value = phase_value.lower()
+    
     context_pkg = {'model': model, 'session': model.Session, 'ignore_auth': True, 'allow_partial_update' : True }
     packageUpdate  =  { 'id' : pkg_dict['id'], 'author' : 'gsk' , 'groups' : ds_groups, 'owner_org': phase_value }
     packageUpdate_str = logic.get_action('package_update')(context_pkg, packageUpdate)
+    
     ds_groups = []
     return
 
@@ -156,28 +138,33 @@ def create_association_group(pkg_dict):
 def update_association_group(pkg_dict):
     global set_flag 
     global ds_groups
-    print pkg_dict
+    
+    #lets get package information first
+    context_pkg = { 'model': model, 'session': model.Session, 'ignore_auth': True, 'allow_partial_update' : True }
+    pkg_Data = { 'id' : pkg_dict['id']}
+    pkg_Info = logic.get_action('package_show')(context_pkg, pkg_Data)
+   
     if set_flag is not False:
         set_flag = False
         phase_value = ''
-        context_pkg = {'model': model, 'session': model.Session, 'ignore_auth': True, 'allow_partial_update' : True }
         try:
-            pkg_dict['phase']
+            pkg_Info['phase']
         except Exception, e:
             pass
         else:
-            phase_value = pkg_dict['phase']
-            print "i am in update"
+            phase_value = pkg_Info['phase']
             if phase_value != '' and phase_value is not None:
-                phase_value = pkg_dict['phase']+'-ph'
+                phase_value = pkg_Info['phase']+'-ph'
                 phase_value = phase_value.replace(' ', '-')
                 phase_value = phase_value.lower()
-            print phase_value
-        
+            
+        if phase_value == '':
+            phase_value = 'gsk'
 
         packageUpdate  =  { 'id' : pkg_dict['id'], 'author' : 'gsk' , 'groups' : ds_groups , 'owner_org': phase_value  }
         packageUpdate_str = logic.get_action('package_update')(context_pkg, packageUpdate)
         ds_groups = []
+    
     return
 
 def gettag_list():
@@ -189,28 +176,33 @@ def gettag_list():
         # get vocab details
         vocab_list = logic.get_action('vocabulary_list')(context_tags)
         vocab_list = vocab_list[0]
-        print vocab_list 
-        print vocab_list['id']
-
+        
         tagDict = { 'vocabulary_id' : vocab_list['id'] }
-        print tagDict
         gettag_list = logic.get_action('tag_list')(context_tags, tagDict)
         gettag_list = {'result':gettag_list}
-        
-        print "i am in getlist "
-
         return gettag_list
     except Exception, e:
-        print " e not found users"
         return None
-        #print "i am in taglisting"
-        #print taglist['name']
-        #tags_dict = { 'vocabulary_id': taglist['vocabulary_id'] , 'all_fields' : True }                
-        #taglisting = logic.get_action('tag_list')(context_tags, tags_dict)
-        #print taglisting
-        #data_dict = { 'vocabulary_id': taglist['id'] }
-        #tag_codes = taglisting(data_dict)
-
+      
+def manage_rating(pkg_dict):
+     context_rating = {'model': model,
+                   'session': model.Session,
+                   'ignore_auth': True
+                }
+     package_ref = pkg_dict['id']
+     package = model.Package.get(package_ref)
+     ret_dict = {'rating_average': package.get_average_rating(),
+                'rating_count': len(package.ratings)}
+     return ret_dict
+     
+def create_rating(pkg_dict, data):
+    context_rating = {'model': model,
+                   'session': model.Session,
+                   'ignore_auth': True
+                }
+    rateDict = { 'package' : pkg_dict['id'], 'rating':data  }
+    rate_res = logic.get_action('rating_create')(context_rating, rateDict)
+    return rate_res
 
 class ExtrafieldsPlugin(plugins.SingletonPlugin,toolkit.DefaultDatasetForm):
     
@@ -222,20 +214,20 @@ class ExtrafieldsPlugin(plugins.SingletonPlugin,toolkit.DefaultDatasetForm):
     
     def before_view(self, pkg_dict):
         #Just to test the method
-        set_flag = True
+        set_flag = True       
         return pkg_dict
 
+
     def after_create(self, context, pkg_dict):
-        print 'after_create'
         create_association_group(pkg_dict)
         return
+
     def get_helpers(self):
         # Tag listing 
-        return {'gettag_list' : gettag_list }
+        return {'manage_rating' : manage_rating, 'create_rating' : create_rating}
 
 
     def after_update(self, context, pkg_dict):
-        print "after_update"
         update_association_group(pkg_dict)
         return 
    
@@ -269,7 +261,7 @@ class ExtrafieldsPlugin(plugins.SingletonPlugin,toolkit.DefaultDatasetForm):
                 'business_owner' : [ toolkit.get_validator('ignore_missing'), toolkit.get_converter('convert_to_extras')]
                 })
         schema.update({
-                'frontend_app' : [ toolkit.get_validator('ignore_missing'), toolkit.get_converter('convert_to_extras')('gettag_list'),manage_vocab]
+                'frontend_app' : [ toolkit.get_validator('ignore_missing'), toolkit.get_converter('convert_to_extras'), manage_vocab]
                 })
         schema.update({
                 'business_owner' : [ toolkit.get_validator('ignore_missing'), toolkit.get_converter('convert_to_extras')]
@@ -351,7 +343,7 @@ class ExtrafieldsPlugin(plugins.SingletonPlugin,toolkit.DefaultDatasetForm):
                             toolkit.get_validator('ignore_missing')]
         })
         schema.update({
-            'frontend_app': [toolkit.get_converter('convert_from_extras')('gettag_list'),
+            'frontend_app': [toolkit.get_converter('convert_from_extras'),
                             toolkit.get_validator('ignore_missing')]
         })
         schema.update({
